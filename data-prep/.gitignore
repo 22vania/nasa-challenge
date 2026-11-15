@@ -1,0 +1,6 @@
+# Downloads (about 440 MB) and generated files. The website copies live in ../dist/data/.
+raw/
+out/*.json
+out/*.csv
+out/maps/
+__pycache__/

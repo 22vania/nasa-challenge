@@ -1,0 +1,61 @@
+Earth at night, 2012 to 2023, from NASA's Black Marble.
+There is one map for each year, and one map of change from 2012 to 2023.
+Numbers are relative. 1 is the brightest area in any year. 0 is dark.
+
+Key facts:
+- Between 2012 and 2023, the Earth at night got about 27 percent brighter.
+- The brightest areas in 2023: eastern China, the Middle East, the southeastern United States, southern China.
+- Cities in India got much brighter, as more homes and roads got electric light.
+- Many cities in Western Europe got darker, partly because of new LED street lights and saving energy.
+- Cities in Ukraine got darker after the war began in 2022. NASA's movie zooms in on Ukraine to show this.
+- Damascus in Syria and Beirut in Lebanon got darker.
+- Most of the oceans, deserts and rainforests stay dark all the time.
+
+All light on Earth each year, where 1 is the brightest year:
+- 2012: 0.79
+- 2013: 0.81
+- 2014: 0.83
+- 2015: 0.81
+- 2016: 0.83
+- 2017: 0.83
+- 2018: 0.86
+- 2019: 0.87
+- 2020: 0.95
+- 2021: 0.89
+- 2022: 0.97
+- 2023: 1.00
+
+Cities, from 2012 to 2023:
+- Kyiv, Ukraine: much darker.
+- Kharkiv, Ukraine: much darker.
+- Mariupol, Ukraine: much darker.
+- Moscow, Russia: much brighter.
+- Paris, France: much darker.
+- London, UK: a little darker.
+- Madrid, Spain: a little darker.
+- Milan, Italy: about the same.
+- Delhi, India: much brighter.
+- Mumbai, India: much brighter.
+- Bengaluru, India: much brighter.
+- Patna, India: much brighter.
+- Cairo, Egypt: about the same.
+- Aleppo, Syria: a little darker.
+- Damascus, Syria: much darker.
+- Beirut, Lebanon: much darker.
+- Tel Aviv, Israel: much brighter.
+- Taipei, Taiwan: a little brighter.
+- Kaohsiung, Taiwan: much brighter.
+- Tokyo, Japan: a little brighter.
+- Shanghai, China: much brighter.
+- Lagos, Nigeria: much brighter.
+- Nairobi, Kenya: much brighter.
+- New York, USA: a little brighter.
+- Houston, USA: much brighter.
+- Sao Paulo, Brazil: a little brighter.
+- Sydney, Australia: much brighter.
+
+Got much brighter: Patna, India; Nairobi, Kenya; Bengaluru, India; Lagos, Nigeria; Delhi, India; Mumbai, India; Moscow, Russia; Tel Aviv, Israel.
+Got darker: Kyiv, Ukraine; Damascus, Syria; Mariupol, Ukraine; Beirut, Lebanon; Kharkiv, Ukraine; Paris, France; London, UK; Aleppo, Syria.
+
+Check of the numbers:
+- NASA's change map and our own 2012 versus 2023 comparison agree on brighter or darker in 92 percent of 123 areas.
