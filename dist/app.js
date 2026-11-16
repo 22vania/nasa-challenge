@@ -9,6 +9,9 @@ function persist(){try{localStorage.setItem('earthtone-settings',JSON.stringify(
 // Every dataset becomes a list of rows: {label, spoken, value}.
 // `range` says which value plays the lowest note (min) and which plays the highest note (max).
 // `baseline` is the reference value (0 °C, or half of the peak) played by "Hear the baseline".
+// Night lights: a number of doublings, shown as a percent change since 2012 (+1 → +100%, −1 → −50%).
+function pctSince(v){const p=Math.round((2**v-1)*100);return p===0?'0%':`${p>0?'+':'−'}${Math.abs(p)}%`}
+function pctWords(v){const p=Math.round((2**v-1)*100);return p===0?'as bright':`${Math.abs(p)} percent ${p>0?'brighter':'darker'}`}
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const relative={
   range:{min:0,max:1},baseline:.5,
@@ -41,23 +44,36 @@ const DATASETS={
       this.sourceText=`NASA GISTEMP v4 · ${out[0].year}–${out.at(-1).year} · ${out.length} complete annual means. Downloaded November 14, 2026. Values relative to 1951–1980; later NASA revisions may change this snapshot.`}
   },
   nightlights:{
-    ...relative,
+    // Every place is compared with its own first year, 2012. A value is the number of doublings:
+    // 0 = as bright as 2012, +1 = twice as bright, −1 = half as bright. 2012 plays the middle note,
+    // twice as bright (or more) the highest note, half as bright (or less) the lowest note.
+    range:{min:-1,max:1},baseline:0,
+    axis:{min:-1,max:1,step:.5,ticks:[-2,-1,Math.log2(.75),0,Math.log2(1.5),1,2,3,4],format:v=>pctSince(v)},
+    readout:v=>pctSince(v),
+    sample:[-.8,-.4,0,.3,.6,1],
     eyebrow:'02 / EARTH AT NIGHT',title:'The lights we make',timeName:'YEAR',
-    valueLabel:'OF THE BRIGHTEST YEAR',
-    legend:'NASA Black Marble · from SVS 5313',baselineLegend:'Middle note: half as bright as the brightest year',
+    valueLabel:'BRIGHTER / DARKER THAN 2012',
+    legend:'NASA Black Marble · from SVS 5313',baselineLegend:'Middle note: as bright as 2012',
     announceEvery:3,
     tick:(r,i,n)=>i%2===0||i===n-1,
-    describe:r=>`${r.spoken}: ${Math.round(r.value*100)} percent as bright as the brightest year`,
-    baselineText:'Reference tone: the note for half as bright as the brightest year. Brighter years sound higher.',
-    context:'Each note is one year of light at night, from cities, roads and industry. Higher notes mean more light. Choose a city to hear its own story: every place is compared with its own brightest year.',
+    describe:r=>r.value===0&&r.year===2012?`${r.spoken}: the starting year`:`${r.spoken}: ${pctWords(r.value)} than in 2012`,
+    baselineText:'Reference tone: the middle note is 2012. Brighter than 2012 sounds higher, darker sounds lower.',
+    context:'Each note is one year of light at night, from cities, roads and industry, compared with 2012. The first note is the middle note. Brighter than 2012 sounds higher, darker sounds lower. Choose a city to hear its own story: the menu says how much each place changed.',
     map:r=>`data/maps/nightlights-hd/${r.label}.jpg`,mapName:'The Earth at night',zoom:5,change:true,
     sourceUrl:'https://svs.gsfc.nasa.gov/5313/',download:'data/nightlights.json',
     async load(){const d=await fetch('data/nightlights.json').then(r=>{if(!r.ok)throw Error();return r.json()});
       const years=d.times.map(Number);
-      const make=values=>values.map((v,i)=>({year:years[i],label:d.times[i],spoken:d.times[i],value:v}));
-      this.places=[{name:'Whole planet',rows:make(d.summary.values)},...d.places.values.map(p=>({name:p.name,lat:p.lat,lon:p.lon,rows:make(p.light)}))];
+      const make=values=>values.map((v,i)=>({year:years[i],label:d.times[i],spoken:d.times[i],value:Math.log2(v/values[0])}));
+      const since=rows=>rows.at(-1).value;
+      const planet=make(d.summary.values);
+      const cities=d.places.values.map(p=>({name:p.name,lat:p.lat,lon:p.lon,rows:make(p.light)})).map(p=>({...p,label:`${p.name} (${pctSince(since(p.rows))} since 2012)`}));
+      // Group the cities by how much they changed from 2012 to 2023 (more than 10% either way).
+      const brighter=cities.filter(p=>since(p.rows)>=Math.log2(1.1)).sort((a,b)=>since(b.rows)-since(a.rows)).map(p=>({...p,group:'Got brighter since 2012'}));
+      const darker=cities.filter(p=>since(p.rows)<=Math.log2(.9)).sort((a,b)=>since(a.rows)-since(b.rows)).map(p=>({...p,group:'Got darker since 2012'}));
+      const same=cities.filter(p=>!brighter.some(q=>q.name===p.name)&&!darker.some(q=>q.name===p.name)).map(p=>({...p,group:'About the same'}));
+      this.places=[{name:'Whole planet',label:`Whole planet (${pctSince(since(planet))} since 2012)`,rows:planet},...brighter,...darker,...same];
       this.facts=d.facts;
-      this.sourceText=`NASA Black Marble night lights, ${d.times[0]}–${d.times.at(-1)}, measured from the colors of NASA’s Earth Information Center movie “Change in Night Lights between 2012 and 2023” (SVS 5313). Values are relative: 100% is the brightest year for each place.`}
+      this.sourceText=`NASA Black Marble night lights, ${d.times[0]}–${d.times.at(-1)}, measured from the colors of NASA’s Earth Information Center movie “Change in Night Lights between 2012 and 2023” (SVS 5313). Values compare each place with its own light in 2012.`}
   },
   lightning:{
     ...relative,
@@ -69,14 +85,30 @@ const DATASETS={
     tickLabel:r=>r.label.slice(0,4),
     describe:r=>`${r.spoken}: ${Math.round(r.value*100)} percent of the stormiest month`,
     baselineText:'Reference tone: the note for half as much lightning as the stormiest month. Stormier months sound higher.',
-    context:'Each note is one month of lightning seen by the International Space Station. Higher notes mean more lightning. Listen for the seasons: storms rise every northern summer and fall every winter. Choose a region to hear its own rhythm.',
+    context:'Each note is one month of lightning seen by the International Space Station. Higher notes mean more lightning. Listen for the seasons: storms rise every northern summer and fall every winter. Choose the northern or southern half to hear the seasons flip, or a continent or smaller area to hear its own rhythm.',
     map:r=>`data/maps/lightning/${r.label}.jpg`,mapName:'Lightning in the last month',
     sourceUrl:'https://svs.gsfc.nasa.gov/5011/',download:'data/lightning.json',
+    // Areas are made of whole 10 degree squares: a square belongs to an area when its center is inside one of the
+    // area's boxes [south, north, west, east]. The boxes follow the continents roughly, not exact borders.
+    areas:[
+      ['Halves of the world','Northern half (north of the equator)',[[0,90,-180,180]]],
+      ['Halves of the world','Southern half (south of the equator)',[[-90,0,-180,180]]],
+      ['Continents','Africa',[[-40,10,-20,50],[10,30,-20,40],[30,40,-10,30]]],
+      ['Continents','South America',[[-60,10,-90,-30]]],
+      ['Continents','North and Central America',[[10,60,-170,-50]]],
+      ['Continents','Asia',[[10,60,40,150],[30,40,30,40],[-10,10,90,150]]],
+      ['Continents','Australia',[[-50,-10,110,180]]],
+      ['Continents','Europe (south of 55° north)',[[40,60,-10,40]]]],
     regions:[['Congo rainforest',-2,23],['Colombia and Venezuela',6,-72],['Central United States',38,-96],['Northern India and Bangladesh',25,85],['Southeast Asia',16,103],['Taiwan',24,121],['Northern Australia',-15,132],['Southern Brazil and Argentina',-27,-55]],
     async load(){const d=await fetch('data/lightning.json').then(r=>{if(!r.ok)throw Error();return r.json()});
       const make=values=>values.map((v,i)=>{const [y,m]=d.times[i].split('-');return{year:Number(y),label:d.times[i],show:`${MONTHS[Number(m)-1].slice(0,3)} ${y}`,spoken:`${MONTHS[Number(m)-1]} ${y}`,value:v}}).filter(r=>r.value!==null);
       const regions=this.regions.map(([name,lat,lon])=>{const row=Math.floor((90-lat)/10),col=Math.floor((lon+180)/10);const series=d.values.map(g=>g?g[row][col]:null);const top=Math.max(...series.filter(v=>v!==null))||1;return{name,lat,lon,rows:make(series.map(v=>v===null?null:Math.round(v/top*1000)/1000))}});
-      this.places=[{name:'Whole planet',rows:make(d.summary.values)},...regions];
+      const relative=series=>{const top=Math.max(...series.filter(v=>v!==null))||1;return make(series.map(v=>v===null?null:Math.round(v/top*1000)/1000))};
+      const areas=this.areas.map(([group,name,boxes])=>{const cells=[];for(let r=0;r<18;r++)for(let c=0;c<36;c++){const lat=85-r*10,lon=-175+c*10;if(boxes.some(([s,n,w,e])=>lat>=s&&lat<n&&lon>=w&&lon<e))cells.push([r,c])}
+        const series=d.values.map(g=>{if(!g)return null;let sum=0,seen=false;for(const [r,c] of cells)if(g[r][c]!==null){sum+=g[r][c];seen=true}return seen?sum:null});
+        return{group,name,cells:cells.length,rows:relative(series)}});
+      regions.forEach(p=>p.group='Smaller areas');
+      this.places=[{name:'Whole planet',rows:make(d.summary.values)},...areas,...regions];
       this.facts=d.facts;
       this.sourceText=`Lightning seen by the Lightning Imaging Sensor on the International Space Station, ${MONTHS[2]} 2017 to ${MONTHS[6]} 2023, measured from the yellow flashes in NASA’s Earth Information Center movie (SVS 5011). Values are relative: 100% is the stormiest month for each place. The station cannot see beyond about 55° north or south.`}
   },
@@ -126,7 +158,7 @@ async function previewChoice(choice,button,tone){stopPreview();const token=previ
   catch{$('sampleStatus').textContent='Audio could not start. You can still choose an answer.'}}
 function fmt(seconds){return `${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')}`}
 function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-function draw(){if(!rows.length)return;const svg=$('chart'),a=data.axis;const min=Math.min(a.min,...rows.map(r=>r.value)),max=Math.max(a.max,...rows.map(r=>r.value));const x=i=>45+i/Math.max(1,rows.length-1)*730,y=v=>220-(v-min)/(max-min)*195;const base=data.baseline;const points=rows.map((r,i)=>`${x(i)},${y(r.value)}`).join(' ');let html='<defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ce542e" stop-opacity=".18"/><stop offset="1" stop-color="#ce542e" stop-opacity="0"/></linearGradient></defs>';for(let v=a.min;v<=max+1e-9;v+=a.step){const isBase=Math.abs(v-base)<1e-9;html+=`<line x1="45" x2="775" y1="${y(v)}" y2="${y(v)}" stroke="${isBase?'#849685':'#dce1d5'}" stroke-dasharray="${isBase?'4 4':'0'}"/><text x="0" y="${y(v)+4}" fill="#71816f" font-size="11">${a.format(v)}</text>`}html+=`<polygon points="45,220 ${points} ${x(rows.length-1)},220" fill="url(#fill)"/><polyline points="${points}" fill="none" stroke="#ce542e" stroke-width="2.5" stroke-linejoin="round"/>`;for(let i=0;i<rows.length;i++){if(data.tick(rows[i],i,rows.length))html+=`<text x="${x(i)}" y="248" text-anchor="middle" fill="#71816f" font-size="11">${esc(data.tickLabel?data.tickLabel(rows[i]):rows[i].label)}</text>`}html+=`<line x1="${x(index)}" x2="${x(index)}" y1="15" y2="225" stroke="#213e35" opacity=".35"/><circle cx="${x(index)}" cy="${y(rows[index].value)}" r="6" fill="#213e35" stroke="#fafbf5" stroke-width="3"/>`;svg.innerHTML=html}
+function draw(){if(!rows.length)return;const svg=$('chart'),a=data.axis;const min=Math.min(a.min,...rows.map(r=>r.value)),max=Math.max(a.max,...rows.map(r=>r.value));const x=i=>45+i/Math.max(1,rows.length-1)*730,y=v=>220-(v-min)/(max-min)*195;const base=data.baseline;const points=rows.map((r,i)=>`${x(i)},${y(r.value)}`).join(' ');let html='<defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ce542e" stop-opacity=".18"/><stop offset="1" stop-color="#ce542e" stop-opacity="0"/></linearGradient></defs>';for(const v of (a.ticks||Array.from({length:Math.floor((max-a.min)/a.step+1e-9)+1},(_,k)=>a.min+k*a.step)).filter(t=>t>=min-1e-9&&t<=max+1e-9)){const isBase=Math.abs(v-base)<1e-9;html+=`<line x1="45" x2="775" y1="${y(v)}" y2="${y(v)}" stroke="${isBase?'#849685':'#dce1d5'}" stroke-dasharray="${isBase?'4 4':'0'}"/><text x="0" y="${y(v)+4}" fill="#71816f" font-size="11">${a.format(v)}</text>`}html+=`<polygon points="45,220 ${points} ${x(rows.length-1)},220" fill="url(#fill)"/><polyline points="${points}" fill="none" stroke="#ce542e" stroke-width="2.5" stroke-linejoin="round"/>`;for(let i=0;i<rows.length;i++){if(data.tick(rows[i],i,rows.length))html+=`<text x="${x(i)}" y="248" text-anchor="middle" fill="#71816f" font-size="11">${esc(data.tickLabel?data.tickLabel(rows[i]):rows[i].label)}</text>`}html+=`<line x1="${x(index)}" x2="${x(index)}" y1="15" y2="225" stroke="#213e35" opacity=".35"/><circle cx="${x(index)}" cy="${y(rows[index].value)}" r="6" fill="#213e35" stroke="#fafbf5" stroke-width="3"/>`;svg.innerHTML=html}
 function describe(r){return data.describe(r)}
 function render(announce=false){if(!rows.length)return;let r=rows[index];$('year').textContent=r.show||r.label;$('anomaly').textContent=data.readout(r.value);$('frequency').textContent=Math.round(pitchFor(r.value));$('scrub').value=index;const spoken=describe(r);$('scrub').setAttribute('aria-valuetext',spoken);$('chart').setAttribute('aria-valuenow',index);$('chart').setAttribute('aria-valuetext',spoken);let total=Number($('duration').value)/Number($('speed').value);$('progress').textContent=`${fmt(index/rows.length*total)} / ${fmt(total)}`;if(announce)$('caption').textContent=`${spoken}. ${Math.round(pitchFor(r.value))} Hz.`;draw();drawMap(r)}
 // ---------- Flat world map (NASA movie frame for the current step) ----------
@@ -144,7 +176,7 @@ function drawMap(r){$('mapFig').hidden=!data.map;if(!data.map)return;const src=d
   $('changeBtn').setAttribute('aria-pressed',String(changing));$('changeBtn').textContent=`Show change since ${rows[0].label}`;
   $('changeLegend').hidden=!changing;$('mapFig').classList.toggle('changing',changing);drawChange(r,changing);
   let alt=`${data.mapName}, ${r.spoken}.`;if(zoomed)alt+=` Zoomed in on ${place.name}.`;else if(here)alt+=` The ring marks ${place.name}.`;
-  if(changing)alt+=r===rows[0]?` This is the first year, so nothing has changed yet.`:` Colored to show change since ${rows[0].spoken}: purple is brighter, orange is darker.${here?' '+place.name+' is at '+data.readout(r.value)+' of its brightest year, compared with '+data.readout(rows[0].value)+' in '+rows[0].spoken+'.':''}`;
+  if(changing)alt+=r===rows[0]?` This is the first year, so nothing has changed yet.`:` Colored to show change since ${rows[0].spoken}: purple is brighter, orange is darker.${here?' '+place.name+' is '+pctWords(r.value)+' than in '+rows[0].spoken+'.':''}`;
   $('mapImg').setAttribute('alt',alt);
   $('mapDot').hidden=!here;if(here){$('mapDot').style.left=`${fx*100}%`;$('mapDot').style.top=`${fy*100}%`}
   $('mapCaption').textContent=`${r.show||r.label} · ${here?place.name+' · ':''}${changing?'change since '+rows[0].label+' · ':''}NASA Scientific Visualization Studio`}
@@ -265,15 +297,15 @@ ${scale}${sameData}</ol>`}
     const sorted=[...rows].sort((a,b)=>a.value-b.value);const list=[[rows[0],'first'],[sorted[0],'lowest'],[sorted.at(-1),lightning?'stormiest':'brightest'],[rows.at(-1),'latest']].filter((x,i,a)=>a.findIndex(y=>y[0]===x[0])===i);
     const source=lightning
       ?`<li><strong>The data</strong>The Lightning Imaging Sensor on the International Space Station saw lightning from March 2017 to July 2023. NASA’s Science On a Sphere movie (SVS 5011) shows each flash as a yellow dot on a flat world map. We count the yellow pixels in every 10 degree square of the map. A dot stays on screen for about 30 days, so we use the frame at the end of each month: one map per month.</li>
-<li><strong>Where</strong>“Whole planet” adds up every square. A region uses the one 10 degree square (about 1,100 km across) that contains it. The station cannot see beyond about 55 degrees north or south.</li>
+<li><strong>Where</strong>“Whole planet” adds up every square. The northern and southern halves add up every square north or south of the equator: their storm seasons are opposite, so their melodies rise and fall in turn. A continent adds up the squares that roughly cover it (10 degree squares cannot follow exact coastlines). A smaller area uses the one 10 degree square (about 1,100 km across) that contains it. The station cannot see beyond about 55 degrees north or south, so most of Europe, Canada and Russia is missing.</li>
 <li><strong>Make it relative</strong>Each place is compared with its own stormiest month, which counts as 100%. So every region uses the whole range of notes, and you hear its own rhythm. The numbers are amounts of yellow on the map, not exact flash counts.<span class="formula">value = yellow pixels this month ÷ yellow pixels in the stormiest month</span></li>`
       :`<li><strong>The data</strong>NASA Black Marble maps of the Earth at night, one per year from 2012 to 2023, from NASA’s Earth Information Center movie (SVS 5313). We read the color of every pixel. The land and ice underneath are never brighter than about 35 out of 255, so anything brighter than a pixel’s darkest year is light from cities, roads and industry.</li>
 <li><strong>Where</strong>“Whole planet” adds up the light of the whole map. A city uses a small box around it, about 1.5 by 1.5 degrees (roughly 160 km).</li>
-<li><strong>Make it relative</strong>Each place is compared with its own brightest year, which counts as 100%. So a small town and a megacity both use the whole range of notes. The numbers say brighter or darker, not watts or people.<span class="formula">value = light this year ÷ light in the brightest year</span></li>`;
+<li><strong>Compare with 2012</strong>Each place is compared with its own light in 2012. So a small town and a megacity can be compared: +50% means one and a half times as bright as in 2012, −50% means half as bright. The numbers say brighter or darker, not watts or people.<span class="formula">change = light this year ÷ light in 2012</span></li>`;
     html=`<ol>${source}
 ${timing}
-<li><strong>${lightning?'Lightning':'Light'} becomes pitch</strong>0% plays ${ends}. 100% plays ${top}. Every 10% more ${lightning?'lightning':'light'} raises the note by ${num(per10)} semitones (one semitone is one piano key). 50%, the middle, plays about ${noteName(midiFor(.5))}, ${Math.round(pitchFor(.5))} Hz.${pitchRule.replace('(value − smallest) ÷ (biggest − smallest)','value (0 to 1)')}</li>
-<li><strong>Examples for ${esc(who)}, with your settings</strong>${exampleTable(list,lightning?'Of the stormiest month':'Of the brightest year')}</li>
+${lightning?'':`<li><strong>Light becomes pitch</strong>2012 plays the middle note, about ${noteName(midiFor(0))} (${Math.round(pitchFor(0))} Hz). Twice as bright as 2012 (+100%) or more plays ${top}. Half as bright (−50%) or less plays ${ends}. Each doubling moves the note by ${num(span/2)} semitones, so +41% is a quarter of your range up and −29% a quarter down. Big changes like +250% stay on the highest note; the numbers still show the real change.<span class="formula">semitones above your lowest note = (log2(change) + 1) ÷ 2 × ${span}</span><span class="formula">frequency = ${Math.round(hz(lo))} Hz × 2^(semitones ÷ 12)</span></li>`}${!lightning?'':`<li><strong>Lightning becomes pitch</strong>0% plays ${ends}. 100% plays ${top}. Every 10% more ${lightning?'lightning':'light'} raises the note by ${num(per10)} semitones (one semitone is one piano key). 50%, the middle, plays about ${noteName(midiFor(.5))}, ${Math.round(pitchFor(.5))} Hz.${pitchRule.replace('(value − smallest) ÷ (biggest − smallest)','value (0 to 1)')}</li>`}
+<li><strong>Examples for ${esc(who)}, with your settings</strong>${exampleTable(list,lightning?'Of the stormiest month':'Compared with 2012')}</li>
 ${scale}${sameData}</ol>`}
   $('howtoBody').innerHTML=html+`<p class="note">You set the lowest note, the highest note and the scale in the studio, or in “Find your sound”.</p>`;
   baselineButton()}
@@ -287,15 +319,17 @@ function showDataset(){
   $('legendBaseline').textContent=data.baselineLegend;$('contextText').textContent=data.context;
   $('facts').innerHTML=(data.facts||[]).map(f=>`<li>${esc(f)}</li>`).join('');
   $('sourceDetail').textContent=data.sourceText;$('sourceLink').href=data.sourceUrl;$('downloadLink').href=data.download;
-  $('rangeHelp').textContent=data===DATASETS.temperature?'The coolest year plays your lowest note, the warmest year plays your highest note.':`0% plays your lowest note, 100% (the ${data===DATASETS.lightning?'stormiest month':'brightest year'}) plays your highest note.`;
+  $('rangeHelp').textContent=data===DATASETS.temperature?'The coolest year plays your lowest note, the warmest year plays your highest note.':data===DATASETS.lightning?'0% plays your lowest note, 100% (the stormiest month) plays your highest note.':'2012 plays the middle note. Half as bright or less plays your lowest note, twice as bright or more plays your highest note.';
   const many=data.places.length>1;$('placeLabel').hidden=!many;
-  $('place').innerHTML=data.places.map(p=>`<option>${esc(p.name)}</option>`).join('')}
+  // Places with a group (lightning: halves, continents, smaller areas) are listed under a heading.
+  let html='',open=null;for(const p of data.places){if((p.group||null)!==open){if(open)html+='</optgroup>';open=p.group||null;if(open)html+=`<optgroup label="${esc(open)}">`}html+=`<option value="${esc(p.name)}">${esc(p.label||p.name)}</option>`}
+  $('place').innerHTML=html+(open?'</optgroup>':'')}
 async function selectDataset(key,announce=true){pause();
   const next=DATASETS[key]||DATASETS.temperature;$('status').textContent='Loading NASA data…';$('play').disabled=true;
   try{if(!next.places)await next.load()}catch{$('status').textContent='Data unavailable';$('caption').textContent='Could not load this dataset. Reload to try again. No synthetic data is substituted.';return false}
   data=next;index=0;showDataset();usePlace('Whole planet');preloadMaps();$('play').disabled=false;$('status').textContent='Ready to listen';
   try{localStorage.setItem('earthtone-dataset',key)}catch{}
-  if(announce){const first=rows[0],last=rows.at(-1);$('caption').textContent=`${data.title}. ${rows.length} ${data.timeName==='MONTH'?'months':'years'}, from ${first.spoken} to ${last.spoken}. Higher notes mean ${data===DATASETS.temperature?'warmer':data===DATASETS.lightning?'more lightning':'more light'}.`}
+  if(announce){const first=rows[0],last=rows.at(-1);$('caption').textContent=`${data.title}. ${rows.length} ${data.timeName==='MONTH'?'months':'years'}, from ${first.spoken} to ${last.spoken}. ${data===DATASETS.nightlights?'The first note is 2012. Higher than that means brighter than 2012, lower means darker.':`Higher notes mean ${data===DATASETS.temperature?'warmer':'more lightning'}.`}`}
   return true}
 $('dataset').onchange=()=>selectDataset($('dataset').value);
 $('place').onchange=()=>{pause();index=0;usePlace($('place').value);const r=rows[0],l=rows.at(-1);$('caption').textContent=`${$('place').value}: ${describe(r)}. ${describe(l)}.`};

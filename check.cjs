@@ -26,10 +26,10 @@ setTimeout(async()=>{
   key('Home');assert.equal(run('index'),0);el('chart').onpointerdown({clientX:775,pointerId:1});assert.equal(run('index'),145);
   // Night lights
   assert.equal(await run("selectDataset('nightlights')"),true);
-  assert.equal(run('rows.length'),12);assert.equal(run('rows[0].label'),'2012');assert.equal(run('rows.at(-1).value'),1);
-  close(run('pitchFor(.5)'),261.63);close(run('pitchFor(1)'),523.25);close(run('pitchFor(0)'),130.81);assert(el('howtoBody').innerHTML.includes('brightest year'));
+  assert.equal(run('rows.length'),12);assert.equal(run('rows[0].label'),'2012');assert.equal(run('rows[0].value'),0);assert.equal(run('data.readout(rows.at(-1).value)'),'+27%','planet is 27% brighter than in 2012');
+  close(run('pitchFor(0)'),261.63);close(run('pitchFor(1)'),523.25);close(run('pitchFor(-1)'),130.81);close(run('pitchFor(3.5)'),523.25);assert(el('howtoBody').innerHTML.includes('2012 plays the middle note'));assert(el('place').innerHTML.includes('Delhi, India (+99% since 2012)'));assert(el('place').innerHTML.includes('<optgroup label="Got darker since 2012">'));
   assert(run('data.places.length')>20);assert.equal(el('placeLabel').hidden,false);
-  run("usePlace('Kyiv, Ukraine')");assert(run('rows[10].value')<run('rows[9].value')/2,'Kyiv should go dark in 2022');
+  run("usePlace('Kyiv, Ukraine')");assert(run('2**rows[10].value')<run('2**rows[9].value')/2,'Kyiv should go dark in 2022');assert(run('describe(rows[10])').includes('64 percent darker'));
   assert(el('facts').innerHTML.includes('<li>'));
   assert.equal(el('mapFig').hidden,false);assert.equal(el('mapImg').src,'data/maps/nightlights-hd/2012.jpg');assert.equal(el('mapZoom').style['--z'],5,'zooms in on the city');assert.equal(el('zoomBtn').hidden,false);el('zoomBtn').onclick();assert.equal(el('mapZoom').style['--z'],1);el('zoomBtn').onclick();el('changeBtn').onclick();assert.equal(el('changeLegend').hidden,false);assert(el('mapImg').alt.includes('first year'));el('changeBtn').onclick();assert.equal(el('mapDot').hidden,false);assert(el('mapImg').alt.includes('Kyiv'));
   assert(Math.abs(parseFloat(el('mapDot').style.left)-(30.5+180)/360*100)<1);
@@ -37,10 +37,14 @@ setTimeout(async()=>{
   // Lightning
   assert.equal(await run("selectDataset('lightning')"),true);
   assert.equal(run('rows.length'),77);assert.equal(run('rows[0].spoken'),'March 2017');
+  run("usePlace('Northern half (north of the equator)')");const peak=()=>run('rows.reduce((a,b)=>b.value>a.value?b:a).label.slice(5)');assert(['06','07','08'].includes(peak()),'north peaks in summer');
+  run("usePlace('Southern half (south of the equator)')");assert(['11','12','01','02'].includes(peak()),'south peaks in its summer');
+  for(const n of ['Africa','South America','North and Central America','Asia','Australia','Europe (south of 55° north)'])assert(run(`data.places.find(p=>p.name===${JSON.stringify(n)}).cells`)>3,n);
+  assert(el('place').innerHTML.includes('<optgroup label="Continents">'));
   run("usePlace('Congo rainforest')");assert(el('howtoBody').innerHTML.includes('Congo rainforest'));assert(run('rows.every(r=>r.value>=0&&r.value<=1)'));
   key('End');assert(el('chart')['aria-valuetext'].startsWith('July 2023: '));
   assert.equal(el('mapImg').src,'data/maps/lightning/2023-07.jpg');for(const m of run('rows.map(r=>r.label)'))assert(fs.existsSync(`dist/data/maps/lightning/${m}.jpg`));
   // Back to temperature
   assert.equal(await run("selectDataset('temperature')"),true);assert.equal(run('rows.length'),146);assert.equal(el('placeLabel').hidden,true);assert.equal(el('mapFig').hidden,true);
-  console.log('PASS: temperature (146 years, pitch mapping, scales, chart, quiz), keyboard and pointer chart, night lights (12 years, 27 cities, Kyiv goes dark in 2022), lightning (77 months, regions), flat maps for every step (zoom on a city, change since 2012), switching datasets.');
+  console.log('PASS: temperature (146 years, pitch mapping, scales, chart, quiz), keyboard and pointer chart, night lights (12 years, 27 cities, Kyiv goes dark in 2022), lightning (77 months, northern and southern halves, continents, regions), flat maps for every step (zoom on a city, change since 2012), switching datasets.');
 },50);
