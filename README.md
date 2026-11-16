@@ -34,7 +34,7 @@ Pressing Play starts a quiet sustained sine tone underneath the melody, using th
 
 ## Project demo
 
-The 7-slide demo is `dist/demo.pdf` (editable copy: `dist/demo.pptx`), published at https://22vania.github.io/nasa-challenge/demo.pdf . The screenshots in it are of this site; the maps are NASA Scientific Visualization Studio images.
+The 7-slide demo is in `demo/` (`Earthtone-demo.pdf`, editable copy `Earthtone-demo.pptx`). It is kept out of `dist/`, so it is not part of the website. The screenshots in it are of this site; the maps are NASA Scientific Visualization Studio images.
 
 ## Use of AI (Super Intelligence) tools
 
