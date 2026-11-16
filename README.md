@@ -18,6 +18,8 @@ The night lights and lightning numbers were measured from the colors of the NASA
 
 Night lights and lightning also show a flat world map for every step (`dist/data/maps/`, cut from the same NASA movies by `data-prep/tools/maps.py`). A ring marks the chosen place. Clicking the map picks the closest place; the Where menu does the same for keyboards. The map image has a short text description, so the sound and the numbers stay the main way to read the data.
 
+For night lights, choosing a city zooms the map in on it (5 times, using the sharper 2048x1024 maps in `dist/data/maps/nightlights-hd/`); "Zoom in on ..." turns this on and off. "Show change since 2012" compares every pixel with the 2012 map: brighter by more than 10 out of 255 is purple, darker is orange (the same colors as NASA's change map), and the alt text says how the chosen city compares with 2012.
+
 Each dataset is described in the `DATASETS` object at the top of `dist/app.js`. To add one, give it a `load()` that fills `places` with `{name, rows:[{label, spoken, value}]}`.
 
 ## Accessibility

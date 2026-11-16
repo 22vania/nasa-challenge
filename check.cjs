@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const elements=new Map();const initial={scale:'continuous',duration:'45',speed:'1',volume:'30',instrument:'sine',dataset:'temperature'};
-function el(id){if(!elements.has(id))elements.set(id,{value:initial[id]||'',textContent:'',innerHTML:'',hidden:false,href:'',style:{},addEventListener(){},setAttribute(k,v){this[k]=String(v)},getAttribute(k){return this[k]},setPointerCapture(){},getBoundingClientRect(){return{left:0,width:800}},showModal(){this.open=true},close(){this.open=false}});return elements.get(id)}
+function el(id){if(!elements.has(id))elements.set(id,{value:initial[id]||'',textContent:'',innerHTML:'',hidden:false,href:'',style:{setProperty(k,v){this[k]=v}},classList:{toggle(){}},addEventListener(){},setAttribute(k,v){this[k]=String(v)},getAttribute(k){return this[k]},setPointerCapture(){},getBoundingClientRect(){return{left:0,width:800}},showModal(){this.open=true},close(){this.open=false}});return elements.get(id)}
 const file=p=>fs.readFileSync('dist/'+p,'utf8');
 const context={document:{getElementById:el,querySelectorAll:()=>[],documentElement:{dataset:{}}},localStorage:{getItem:k=>k==='earthtone-visited'?'yes':null,setItem(){}},fetch:async p=>({ok:true,text:async()=>file(p),json:async()=>JSON.parse(file(p))}),setTimeout,clearTimeout,console};vm.createContext(context);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),context);
 const run=c=>vm.runInContext(c,context);
@@ -31,9 +31,9 @@ setTimeout(async()=>{
   assert(run('data.places.length')>20);assert.equal(el('placeLabel').hidden,false);
   run("usePlace('Kyiv, Ukraine')");assert(run('rows[10].value')<run('rows[9].value')/2,'Kyiv should go dark in 2022');
   assert(el('facts').innerHTML.includes('<li>'));
-  assert.equal(el('mapFig').hidden,false);assert.equal(el('mapImg').src,'data/maps/nightlights/2012.jpg');assert.equal(el('mapDot').hidden,false);assert(el('mapImg').alt.includes('Kyiv'));
+  assert.equal(el('mapFig').hidden,false);assert.equal(el('mapImg').src,'data/maps/nightlights-hd/2012.jpg');assert.equal(el('mapZoom').style['--z'],5,'zooms in on the city');assert.equal(el('zoomBtn').hidden,false);el('zoomBtn').onclick();assert.equal(el('mapZoom').style['--z'],1);el('zoomBtn').onclick();el('changeBtn').onclick();assert.equal(el('changeLegend').hidden,false);assert(el('mapImg').alt.includes('first year'));el('changeBtn').onclick();assert.equal(el('mapDot').hidden,false);assert(el('mapImg').alt.includes('Kyiv'));
   assert(Math.abs(parseFloat(el('mapDot').style.left)-(30.5+180)/360*100)<1);
-  for(const y of run('rows.map(r=>r.label)'))assert(fs.existsSync(`dist/data/maps/nightlights/${y}.jpg`));
+  for(const y of run('rows.map(r=>r.label)'))assert(fs.existsSync(`dist/data/maps/nightlights-hd/${y}.jpg`));
   // Lightning
   assert.equal(await run("selectDataset('lightning')"),true);
   assert.equal(run('rows.length'),77);assert.equal(run('rows[0].spoken'),'March 2017');
@@ -42,5 +42,5 @@ setTimeout(async()=>{
   assert.equal(el('mapImg').src,'data/maps/lightning/2023-07.jpg');for(const m of run('rows.map(r=>r.label)'))assert(fs.existsSync(`dist/data/maps/lightning/${m}.jpg`));
   // Back to temperature
   assert.equal(await run("selectDataset('temperature')"),true);assert.equal(run('rows.length'),146);assert.equal(el('placeLabel').hidden,true);assert.equal(el('mapFig').hidden,true);
-  console.log('PASS: temperature (146 years, pitch mapping, scales, chart, quiz), keyboard and pointer chart, night lights (12 years, 27 cities, Kyiv goes dark in 2022), lightning (77 months, regions), flat maps for every step, switching datasets.');
+  console.log('PASS: temperature (146 years, pitch mapping, scales, chart, quiz), keyboard and pointer chart, night lights (12 years, 27 cities, Kyiv goes dark in 2022), lightning (77 months, regions), flat maps for every step (zoom on a city, change since 2012), switching datasets.');
 },50);

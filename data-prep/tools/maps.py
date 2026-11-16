@@ -1,7 +1,9 @@
 """Make small flat world maps (pictures) for the website, one per time step.
 
 Run after lightning.py and nightlights.py:  python3 tools/maps.py
-Output: out/maps/nightlights/<year>.jpg and out/maps/lightning/<yyyy-mm>.jpg
+Output: out/maps/nightlights/<year>.jpg, out/maps/nightlights-hd/<year>.jpg (2048x1024, for zooming in)
+        and out/maps/lightning/<yyyy-mm>.jpg
+Run only one part with:  python3 tools/maps.py nightlights
 
 Every map is 1024x512, equirectangular: the left edge is 180 W, the top is 90 N.
 So a place is at x = (lon + 180) / 360 * 1024, y = (90 - lat) / 180 * 512.
@@ -21,12 +23,13 @@ import nightlights as N    # noqa: E402
 
 OUT = Path(__file__).resolve().parent.parent / "out" / "maps"
 SIZE = (1024, 512)
+HD_SIZE = (2048, 1024)
 QUALITY = 80
 
 
-def save(pixels, path):
+def save(pixels, path, size=SIZE):
     path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(pixels).resize(SIZE, Image.LANCZOS).save(path, quality=QUALITY, optimize=True)
+    Image.fromarray(pixels).resize(size, Image.LANCZOS).save(path, quality=QUALITY, optimize=True)
 
 
 def nightlights():
@@ -35,7 +38,9 @@ def nightlights():
     for year, i in N.YEAR_FRAMES.items():
         world = np.roll(N.one_world(frames[i]), shift, axis=1)
         save(world, OUT / "nightlights" / f"{year}.jpg")
-    print("night lights:", len(N.YEAR_FRAMES), "maps")
+        # Sharper copy, used by the website when it zooms in on one city.
+        save(world, OUT / "nightlights-hd" / f"{year}.jpg", HD_SIZE)
+    print("night lights:", len(N.YEAR_FRAMES), "maps (and the same in 2048x1024 in nightlights-hd/)")
 
 
 def lightning():
@@ -58,5 +63,8 @@ def lightning():
 
 
 if __name__ == "__main__":
-    nightlights()
-    lightning()
+    which = sys.argv[1:] or ["nightlights", "lightning"]
+    if "nightlights" in which:
+        nightlights()
+    if "lightning" in which:
+        lightning()

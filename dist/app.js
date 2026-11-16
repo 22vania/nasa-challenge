@@ -50,7 +50,7 @@ const DATASETS={
     describe:r=>`${r.spoken}: ${Math.round(r.value*100)} percent as bright as the brightest year`,
     baselineText:'Reference tone: the note for half as bright as the brightest year. Brighter years sound higher.',
     context:'Each note is one year of light at night, from cities, roads and industry. Higher notes mean more light. Choose a city to hear its own story: every place is compared with its own brightest year.',
-    map:r=>`data/maps/nightlights/${r.label}.jpg`,mapName:'The Earth at night',
+    map:r=>`data/maps/nightlights-hd/${r.label}.jpg`,mapName:'The Earth at night',zoom:5,change:true,
     sourceUrl:'https://svs.gsfc.nasa.gov/5313/',download:'data/nightlights.json',
     async load(){const d=await fetch('data/nightlights.json').then(r=>{if(!r.ok)throw Error();return r.json()});
       const years=d.times.map(Number);
@@ -130,10 +130,45 @@ function draw(){if(!rows.length)return;const svg=$('chart'),a=data.axis;const mi
 function describe(r){return data.describe(r)}
 function render(announce=false){if(!rows.length)return;let r=rows[index];$('year').textContent=r.show||r.label;$('anomaly').textContent=data.readout(r.value);$('frequency').textContent=Math.round(pitchFor(r.value));$('scrub').value=index;const spoken=describe(r);$('scrub').setAttribute('aria-valuetext',spoken);$('chart').setAttribute('aria-valuenow',index);$('chart').setAttribute('aria-valuetext',spoken);let total=Number($('duration').value)/Number($('speed').value);$('progress').textContent=`${fmt(index/rows.length*total)} / ${fmt(total)}`;if(announce)$('caption').textContent=`${spoken}. ${Math.round(pitchFor(r.value))} Hz.`;draw();drawMap(r)}
 // ---------- Flat world map (NASA movie frame for the current step) ----------
+// zoomOn: zoom in on the chosen city (night lights only). changeOn: color what changed since the first year.
+let zoomOn=true,changeOn=false;
 function drawMap(r){$('mapFig').hidden=!data.map;if(!data.map)return;const src=data.map(r);if($('mapImg').getAttribute('src')!==src)$('mapImg').setAttribute('src',src);
-  const here=place&&place.lat!==undefined;$('mapImg').setAttribute('alt',`${data.mapName}, ${r.spoken}.${here?' The ring marks '+place.name+'.':''}`);
-  $('mapDot').hidden=!here;if(here){$('mapDot').style.left=`${(place.lon+180)/360*100}%`;$('mapDot').style.top=`${(90-place.lat)/180*100}%`}
-  $('mapCaption').textContent=`${r.show||r.label} · ${here?place.name+' · ':''}NASA Scientific Visualization Studio`}
+  const here=place&&place.lat!==undefined,zoomed=here&&zoomOn&&!!data.zoom,changing=changeOn&&!!data.change;
+  // Zoom: scale the map and move it so the city sits in the middle, without showing past the map's edges.
+  const z=zoomed?data.zoom:1,fx=here?(place.lon+180)/360:.5,fy=here?(90-place.lat)/180:.5,half=.5/z;
+  const cx=Math.max(half,Math.min(1-half,fx)),cy=Math.max(half,Math.min(1-half,fy));const box=$('mapZoom').style;
+  box.setProperty('--z',z);box.setProperty('--tx',zoomed?`${(.5-cx*z)*100}%`:'0%');box.setProperty('--ty',zoomed?`${(.5-cy*z)*100}%`:'0%');
+  $('mapTools').hidden=!data.zoom&&!data.change;$('zoomBtn').hidden=!(here&&data.zoom);$('changeBtn').hidden=!data.change;
+  // Toggle buttons keep the same words; aria-pressed (and the dark style) says whether they are on.
+  $('zoomBtn').textContent=`🔍 Zoom in on ${here?place.name.split(',')[0]:'the city'}`;$('zoomBtn').setAttribute('aria-pressed',String(zoomOn));
+  $('changeBtn').setAttribute('aria-pressed',String(changing));$('changeBtn').textContent=`Show change since ${rows[0].label}`;
+  $('changeLegend').hidden=!changing;$('mapFig').classList.toggle('changing',changing);drawChange(r,changing);
+  let alt=`${data.mapName}, ${r.spoken}.`;if(zoomed)alt+=` Zoomed in on ${place.name}.`;else if(here)alt+=` The ring marks ${place.name}.`;
+  if(changing)alt+=r===rows[0]?` This is the first year, so nothing has changed yet.`:` Colored to show change since ${rows[0].spoken}: purple is brighter, orange is darker.${here?' '+place.name+' is at '+data.readout(r.value)+' of its brightest year, compared with '+data.readout(rows[0].value)+' in '+rows[0].spoken+'.':''}`;
+  $('mapImg').setAttribute('alt',alt);
+  $('mapDot').hidden=!here;if(here){$('mapDot').style.left=`${fx*100}%`;$('mapDot').style.top=`${fy*100}%`}
+  $('mapCaption').textContent=`${r.show||r.label} · ${here?place.name+' · ':''}${changing?'change since '+rows[0].label+' · ':''}NASA Scientific Visualization Studio`}
+// ---------- Change since the first year ----------
+// Compare each pixel's brightness with the same pixel in the first year's map.
+// Brighter by more than 10 (out of 255) → purple, darker → orange; stronger change = more solid color.
+// A blurred copy is drawn underneath as a glow, so single changed pixels are visible on the whole-world map.
+const changeCache=new Map();let changeToken=0;
+function loadImage(src){return new Promise((ok,fail)=>{const img=new Image();img.onload=()=>ok(img);img.onerror=fail;img.src=src})}
+function pixels(img){const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(img,0,0);return g.getImageData(0,0,c.width,c.height)}
+async function changeLayer(src,base){const key=src+'|'+base;if(changeCache.has(key))return changeCache.get(key);
+  const [a,b]=await Promise.all([loadImage(base),loadImage(src)]);const p0=pixels(a).data,img=pixels(b),p1=img.data;
+  const out=new ImageData(img.width,img.height),o=out.data;
+  for(let i=0;i<p1.length;i+=4){const d=(p1[i]+p1[i+1]+p1[i+2]-p0[i]-p0[i+1]-p0[i+2])/3;if(Math.abs(d)<10)continue;
+    const [R,G,B]=d>0?[197,139,255]:[255,138,61];o[i]=R;o[i+1]=G;o[i+2]=B;o[i+3]=Math.min(255,90+Math.abs(d)*5)}
+  const layer=document.createElement('canvas');layer.width=img.width;layer.height=img.height;layer.getContext('2d').putImageData(out,0,0);
+  changeCache.set(key,layer);return layer}
+async function drawChange(r,show){const canvas=$('mapChange'),token=++changeToken;if(!show||r===rows[0]){canvas.hidden=true;return}
+  try{const layer=await changeLayer(data.map(r),data.map(rows[0]));if(token!==changeToken)return;
+    canvas.width=layer.width;canvas.height=layer.height;const g=canvas.getContext('2d');g.clearRect(0,0,canvas.width,canvas.height);
+    g.filter='blur(6px)';g.globalAlpha=.9;g.drawImage(layer,0,0);g.drawImage(layer,0,0);g.filter='none';g.globalAlpha=1;g.drawImage(layer,0,0);canvas.hidden=false}
+  catch{canvas.hidden=true}}
+$('zoomBtn').onclick=()=>{zoomOn=!zoomOn;drawMap(rows[index]);$('caption').textContent=zoomOn?`Zoomed in on ${place.name}.`:'Showing the whole world.'};
+$('changeBtn').onclick=()=>{changeOn=!changeOn;drawMap(rows[index]);$('caption').textContent=changeOn?`Showing change since ${rows[0].spoken}. Purple is brighter, orange is darker. Press play or move through the years to watch it grow.`:'Showing the normal map.'};
 function preloadMaps(){if(!data.map||typeof Image==='undefined')return;const seen=new Set();for(const p of data.places)for(const r of p.rows){const src=data.map(r);if(!seen.has(src)){seen.add(src);new Image().src=src}}}
 // Clicking the map picks the closest place (the Where menu does the same for keyboards).
 $('mapImg').onclick=e=>{if(!data.map)return;const b=$('mapImg').getBoundingClientRect();const lon=(e.clientX-b.left)/b.width*360-180,lat=90-(e.clientY-b.top)/b.height*180;
@@ -243,7 +278,7 @@ ${scale}${sameData}</ol>`}
   $('howtoBody').innerHTML=html+`<p class="note">You set the lowest note, the highest note and the scale in the studio, or in “Find your sound”.</p>`;
   baselineButton()}
 // ---------- Switching datasets and places ----------
-function usePlace(name){place=data.places.find(p=>p.name===name)||data.places[0];rows=place.rows;index=Math.min(index,rows.length-1);if(index<0)index=0;
+function usePlace(name){place=data.places.find(p=>p.name===name)||data.places[0];zoomOn=true;rows=place.rows;index=Math.min(index,rows.length-1);if(index<0)index=0;
   $('scrub').max=rows.length-1;$('chart').setAttribute('aria-valuemin',0);$('chart').setAttribute('aria-valuemax',rows.length-1);
   $('legendSeries').innerHTML=`<i></i> ${esc(data.legend)}${place.name==='Whole planet'?'':' · '+esc(place.name)}`;
   render(false);renderHowto()}

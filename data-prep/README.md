@@ -20,7 +20,7 @@ curl -L -o raw/nightlights_eic.mp4 https://svs.gsfc.nasa.gov/vis/a000000/a005300
 python3 tools/lightning.py      # about 30 seconds
 python3 tools/nightlights.py    # about 10 seconds
 python3 tools/summarize.py      # writes the sentence summaries and the facts
-python3 tools/maps.py           # flat map pictures, one per year or month (out/maps/)
+python3 tools/maps.py           # flat map pictures, one per year or month (out/maps/), plus 2048x1024 night lights in out/maps/nightlights-hd/
 ```
 
 Then copy the results into the website:
