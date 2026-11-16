@@ -3,9 +3,9 @@
 /* Every size is in rem, so the text size switch (html[data-text]) scales the whole page:
    text, buttons, menus and spacing grow together. */
 :root{--paper:#f4f3eb;--ink:#213e35;--orange:#ce542e;--muted:#5b685e;--line:#dadfd3;--soft:#e6eadb}
-html{font-size:18px}
-html[data-text=large]{font-size:21px}
-html[data-text=xlarge]{font-size:25px}
+html{font-size:21px}
+html[data-text=large]{font-size:24px}
+html[data-text=xlarge]{font-size:28px}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.6}
@@ -140,3 +140,5 @@ td,th{padding:.5rem;text-align:left;border-bottom:1px solid var(--line)}
 .map figcaption{margin-top:.4rem;font-size:.9rem;color:var(--muted)}
 
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+.team-credit{margin:.7rem 0 1rem;overflow-wrap:anywhere}.team-credit strong{color:var(--ink)}footer small{font-size:.9rem;font-weight:500}
