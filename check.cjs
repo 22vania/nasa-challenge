@@ -46,5 +46,32 @@ setTimeout(async()=>{
   assert.equal(el('mapImg').src,'data/maps/lightning/2023-07.jpg');for(const m of run('rows.map(r=>r.label)'))assert(fs.existsSync(`dist/data/maps/lightning/${m}.jpg`));
   // Back to temperature
   assert.equal(await run("selectDataset('temperature')"),true);assert.equal(run('rows.length'),146);assert.equal(el('placeLabel').hidden,true);assert.equal(el('mapFig').hidden,true);
+  // Audio lifecycle: reference is separate from the changing melody, uses the
+  // same mapping, follows master volume, and cannot survive pause/end/switch.
+  const oscillators=[];
+  const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},setTargetAtTime(){},cancelScheduledValues(){}});
+  class MockAudioContext {
+    currentTime=0;destination={};
+    async resume(){}
+    createGain(){return{gain:param(),connect(dest){this.dest=dest},disconnect(){}}}
+    createOscillator(){const osc={frequency:param(),connect(){},disconnect(){},start(){this.started=true},stop(){this.stopped=true}};oscillators.push(osc);return osc}
+  }
+  context.window={AudioContext:MockAudioContext};
+  await el('play').onclick();
+  assert(run('playing'));assert(run('baselineVoice!==null'));
+  const drone=run('baselineVoice.osc');close(drone.frequency.value,run('pitchFor(0)'));
+  assert.strictEqual(run('baselineVoice.gain.dest'),run('master'),'reference follows master volume');
+  run('index=20;render();note(pitchFor(rows[index].value),.1)');
+  assert.strictEqual(run('baselineVoice.osc'),drone,'melody must not recreate the steady tone');
+  run('pause()');assert(drone.stopped);assert.strictEqual(run('baselineVoice'),null);
+  await el('play').onclick();const ended=run('baselineVoice.osc');run('index=rows.length-1');
+  // Trigger completion without a real timeout.
+  const timeout=context.setTimeout;let finish;context.setTimeout=fn=>{finish=fn;return 0};run('clearTimeout(timer);tick()');finish();context.setTimeout=timeout;
+  assert(ended.stopped);assert(!run('playing'));assert.strictEqual(run('baselineVoice'),null);
+  await run("selectDataset('lightning')");await el('play').onclick();close(run('baselineVoice.osc.frequency.value'),run('pitchFor(1)'));const previous=run('baselineVoice.osc');
+  await run("selectDataset('nightlights')");assert(previous.stopped);await el('play').onclick();close(run('baselineVoice.osc.frequency.value'),run('pitchFor(0)'));run('pause()');
+  // Pending audio startup must not restart playback after cancellation.
+  let resume;run('ctx').resume=()=>new Promise(resolve=>{resume=resolve});const pending=el('play').onclick();run('pause()');resume();await pending;assert(!run('playing'));assert.strictEqual(run('baselineVoice'),null);
+  console.log('PASS: sustained reference pitch, continuity, shared volume, pause, completion, dataset switching, cancelled startup.');
   console.log('PASS: temperature (146 years, pitch mapping, scales, chart, quiz), keyboard and pointer chart, night lights (12 years, 27 cities, Kyiv goes dark in 2022), lightning (77 months, northern and southern halves, continents, regions), flat maps for every step (zoom on a city, change since 2012), switching datasets.');
 },50);

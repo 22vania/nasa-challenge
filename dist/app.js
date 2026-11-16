@@ -134,7 +134,14 @@ function midiFor(value,settings){const lo=Number(setting('low',settings)),hi=Num
 function pitchFor(value,settings){return hz(midiFor(value,settings))}
 function interval(){return Number($('duration').value)/rows.length/Number($('speed').value)}
 async function audio(volume=$('volume').value){if(!ctx){ctx=new(window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination)}await ctx.resume();master.gain.setTargetAtTime(Number(volume)/100,ctx.currentTime,.03)}
-function silence(){voices.forEach(o=>{try{o.stop()}catch{}});voices.clear()}
+function silence(){stopBaseline();voices.forEach(o=>{try{o.stop()}catch{}});voices.clear()}
+// A separate sustained sine tone represents the comparison reference, using the
+// same pitch mapping as the melody. It is quieter and does not retrigger per row.
+let baselineVoice=null,playbackToken=0;
+function referenceValue(){return data===DATASETS.lightning?1:data.baseline}
+function referenceDescription(){return data===DATASETS.temperature?'0 °C anomaly · 1951–1980 average':data===DATASETS.nightlights?'2012 brightness · no change':'100% · this place’s stormiest month'}
+function startBaseline(){stopBaseline();const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=pitchFor(referenceValue());gain.gain.setValueAtTime(0,ctx.currentTime);gain.gain.linearRampToValueAtTime(.10,ctx.currentTime+.06);osc.connect(gain);gain.connect(master);osc.onended=()=>{osc.disconnect();gain.disconnect()};osc.start();baselineVoice={osc,gain};}
+function stopBaseline(){if(!baselineVoice)return;const {osc,gain}=baselineVoice;baselineVoice=null;gain.gain.cancelScheduledValues(ctx.currentTime);gain.gain.setTargetAtTime(0,ctx.currentTime,.01);try{osc.stop(ctx.currentTime+.05)}catch{}}
 const instruments={
  piano:{partials:[[1,1],[2,.45],[3,.2],[4,.09]],attack:.008,decay:true},
  strings:{partials:[[1,1],[2,.34],[3,.17],[4,.08]],attack:.08,decay:false},
@@ -206,13 +213,13 @@ function preloadMaps(){if(!data.map||typeof Image==='undefined')return;const see
 $('mapImg').onclick=e=>{if(!data.map)return;const b=$('mapImg').getBoundingClientRect();const lon=(e.clientX-b.left)/b.width*360-180,lat=90-(e.clientY-b.top)/b.height*180;
   let best=null,dist=Infinity;for(const p of data.places){if(p.lat===undefined)continue;const d=Math.hypot(p.lat-lat,((p.lon-lon+540)%360)-180);if(d<dist){best=p;dist=d}}
   const pick=best&&dist<12?best.name:'Whole planet';$('place').value=pick;usePlace(pick);const r=rows[index];$('caption').textContent=`${pick}. ${describe(r)}.`}
-function pause(){playing=false;clearTimeout(timer);stopPreview();$('play').textContent='▶ Listen to Earth';$('status').textContent='Ready to listen'}
+function pause(){playbackToken++;playing=false;clearTimeout(timer);stopPreview();$('play').textContent='▶ Listen to Earth';$('status').textContent='Ready to listen'}
 function tick(){if(!playing)return;render(index%data.announceEvery===0);note(pitchFor(rows[index].value),interval());timer=setTimeout(()=>{if(index>=rows.length-1){pause();render(true);$('status').textContent='Journey complete';return}index++;tick()},interval()*1000)}
-$('play').onclick=async()=>{if(playing){pause();return}try{await audio();if(index===rows.length-1)index=0;playing=true;$('play').textContent='Ⅱ Pause';$('status').textContent='● Playing live';tick()}catch{$('caption').textContent='Audio is unavailable in this browser. You can still explore every measurement with the timeline.'}};
+$('play').onclick=async()=>{if(playing){pause();return}const token=++playbackToken;try{await audio();if(token!==playbackToken)return;stopPreview();if(index===rows.length-1)index=0;playing=true;startBaseline();$('play').textContent='Ⅱ Pause';$('status').textContent='● Playing live';tick()}catch{pause();$('caption').textContent='Audio is unavailable in this browser. You can still explore every measurement with the timeline.'}};
 $('reset').onclick=()=>{pause();index=0;render(true)};$('scrub').oninput=()=>{pause();index=Number($('scrub').value);render(true)};
-$('baseline').onclick=async()=>{pause();try{await audio();note(pitchFor(data.baseline),.7);$('caption').textContent=`${data.baselineText} With your settings it is ${Math.round(pitchFor(data.baseline))} Hz.`}catch{$('caption').textContent='Audio unavailable in this browser.'}};
+$('baseline').onclick=async()=>{pause();try{await audio();note(pitchFor(referenceValue()),.7);$('caption').textContent=`Comparison reference: ${referenceDescription()}. With your settings it is ${Math.round(pitchFor(referenceValue()))} Hz. This pitch stays underneath the melody during playback.`}catch{$('caption').textContent='Audio unavailable in this browser.'}};
 $('hearRange').onclick=async()=>{pause();try{await audio();const lo=Number($('low').value),hi=Number($('high').value);note(hz(lo),.8);setTimeout(()=>note(hz(hi),.8),900);$('caption').textContent=`Lowest note ${noteLabel(lo)}, then highest note ${noteLabel(hi)}.`}catch{$('caption').textContent='Audio unavailable in this browser.'}};
-function baselineButton(){if(data.range)$('baseline').textContent=`♪ Hear the baseline · ${Math.round(pitchFor(data.baseline))} Hz`}
+function baselineButton(){if(!data.range)return;const frequency=Math.round(pitchFor(referenceValue()));$('baseline').textContent=`♪ Hear the baseline · ${frequency} Hz`;$('baselineInfo').textContent=`Continuous reference: ${referenceDescription()} (${frequency} Hz). A quiet, steady tone plays beneath the data notes and stops when playback stops. Its pitch stays fixed throughout each playback.`}
 function labels(){$('speedOut').textContent=$('speed').value+'×';$('volumeOut').textContent=$('volume').value+'%'}
 // The highest note must stay above the lowest note: if a change crosses them, move the other one an octave away.
 function keepRange(changed){const lo=Number($('low').value),hi=Number($('high').value);if(hi>lo)return '';

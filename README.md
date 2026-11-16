@@ -27,3 +27,7 @@ Each dataset is described in the `DATASETS` object at the top of `dist/app.js`. 
 Text size (Normal, Large, Extra large) is a switch at the top of the page and is remembered in the browser. All sizes in `style.css` are in rem, so text, buttons and menus grow together. Buttons are at least about 48 px tall.
 
 The page is a single column, in the same order a screen reader reads it. The chart is a keyboard slider: arrow keys move one step, Page Up and Page Down ten steps, Home and End jump to the ends, Enter plays the current step. Clicking or dragging on the chart also plays each point.
+
+## Continuous comparison tone
+
+Pressing Play starts a quiet sustained sine tone underneath the melody, using the same pitch mapping as the data. Temperature uses 0 °C anomaly (1951–1980); night lights uses no change from 2012; lightning uses 100% of the selected place’s stormiest month. The lightning comparison tone is the normalization reference, rather than the chart’s 50% midpoint. The tone shares the main loudness control and stops on pause, rewind, playback completion, dataset changes, or opening the quiz. The Hear the baseline button previews this same pitch.
